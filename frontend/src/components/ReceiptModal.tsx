@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import html2canvas from 'html2canvas';
 import { X, Share2, MessageCircle, Printer } from 'lucide-react';
 import Receipt from './Receipt';

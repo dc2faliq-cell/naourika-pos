@@ -48,7 +48,6 @@ export default function DashboardPage() {
       };
 
       const totalRevenue = transactions.reduce((sum: number, t: any) => sum + t.totalAmount, 0);
-      const totalProfit = transactions.reduce((sum: number, t: any) => sum + calculateTransactionProfit(t), 0);
 
       // Date calculations
       const now = new Date();
