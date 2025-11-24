@@ -8,7 +8,6 @@ import {
   BarChart3,
   Users,
   UserCircle,
-  LogOut,
   ChevronFirst,
   ChevronLast,
   MoreVertical,
@@ -116,7 +115,6 @@ export function SidebarItem({
   text: string;
   path: string;
   active?: boolean;
-  alert?: boolean;
   adminOnly?: boolean;
 }) {
   const { expanded } = useContext(SidebarContext);
@@ -150,13 +148,6 @@ export function SidebarItem({
       >
         {text}
       </span>
-      {alert && (
-        <div
-          className={`absolute right-2 w-2 h-2 rounded bg-indigo-400 ${
-            expanded ? '' : 'top-2'
-          }`}
-        />
-      )}
 
       {!expanded && (
         <div
