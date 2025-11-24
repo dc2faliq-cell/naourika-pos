@@ -108,19 +108,20 @@ export default function ProductsPage() {
     reader.onload = async (e) => {
       try {
         const text = e.target?.result as string;
-        const lines = text.split('\n').filter(line => line.trim());
-        
+        const lines = text.split('\n').filter((line) => line.trim());
+
         const dataLines = lines.slice(1);
-        
+
         let successCount = 0;
         let errorCount = 0;
 
         for (const line of dataLines) {
-          const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-          
+          const values = line.split(',').map((v) => v.trim().replace(/^"|"$/g, ''));
+
           if (values.length < 6) continue;
 
-          const [name, brand, hargaModal, hargaJual, hargaReseller, stock] = values;
+          const [name, brand, hargaModal, hargaJual, hargaReseller, stock] =
+            values;
 
           try {
             await api.post('/products', {
@@ -138,7 +139,9 @@ export default function ProductsPage() {
           }
         }
 
-        alert(`Import selesai!\nBerhasil: ${successCount}\nGagal: ${errorCount}`);
+        alert(
+          `Import selesai!\nBerhasil: ${successCount}\nGagal: ${errorCount}`
+        );
         fetchProducts();
       } catch (error) {
         console.error('Error parsing CSV:', error);
@@ -174,9 +177,9 @@ Produk Contoh 3,,15000,22000,18000,100`;
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap gap-3 justify-between items-center">
         <h1 className="text-3xl font-bold text-textPrimary">Produk</h1>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <button
             onClick={downloadSampleCSV}
             className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition"
@@ -193,7 +196,13 @@ Produk Contoh 3,,15000,22000,18000,100`;
             {importing ? 'Importing...' : 'Import CSV'}
           </button>
           <button
-            onClick={() => setShowModal(true)}
+            onClick={() => {
+              setEditingProduct(null);
+              setFormData({
+                name: '', brand: '', hargaModal: 0, hargaJual: 0, hargaReseller: 0, stock: 0
+              });
+              setShowModal(true)
+            }}
             className="bg-primary hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition"
           >
             <Plus className="w-5 h-5" />
@@ -210,8 +219,9 @@ Produk Contoh 3,,15000,22000,18000,100`;
         className="hidden"
       />
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <table className="w-full">
+      {/* Table for Desktop */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
+        <table className="w-full hidden md:table">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -290,6 +300,55 @@ Produk Contoh 3,,15000,22000,18000,100`;
         </table>
       </div>
 
+      {/* Cards for Mobile */}
+      <div className="md:hidden space-y-4">
+        {products.map((product) => (
+          <div key={product.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-lg font-bold text-textPrimary">{product.name}</h3>
+                <p className="text-sm text-gray-500">{product.brand || 'No Brand'}</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleEdit(product)}
+                  className="text-primary hover:text-blue-700 p-2"
+                >
+                  <Edit className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => handleDelete(product.id)}
+                  className="text-red-500 hover:text-red-700 p-2"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-gray-500">Harga Jual</p>
+                <p className="text-md font-semibold text-primary">Rp {product.hargaJual.toLocaleString('id-ID')}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-500">Stok</p>
+                <span
+                    className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      product.stock > 10
+                        ? 'bg-green-100 text-green-800'
+                        : product.stock > 0
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-red-100 text-red-800'
+                    }`}
+                  >
+                    {product.stock}
+                  </span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
@@ -329,7 +388,7 @@ Produk Contoh 3,,15000,22000,18000,100`;
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-textPrimary mb-2">
                     Harga Modal
@@ -338,7 +397,10 @@ Produk Contoh 3,,15000,22000,18000,100`;
                     type="number"
                     value={formData.hargaModal}
                     onChange={(e) =>
-                      setFormData({ ...formData, hargaModal: Number(e.target.value) })
+                      setFormData({
+                        ...formData,
+                        hargaModal: Number(e.target.value),
+                      })
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
                     required
@@ -353,7 +415,10 @@ Produk Contoh 3,,15000,22000,18000,100`;
                     type="number"
                     value={formData.hargaJual}
                     onChange={(e) =>
-                      setFormData({ ...formData, hargaJual: Number(e.target.value) })
+                      setFormData({
+                        ...formData,
+                        hargaJual: Number(e.target.value),
+                      })
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
                     required
@@ -368,7 +433,10 @@ Produk Contoh 3,,15000,22000,18000,100`;
                     type="number"
                     value={formData.hargaReseller}
                     onChange={(e) =>
-                      setFormData({ ...formData, hargaReseller: Number(e.target.value) })
+                      setFormData({
+                        ...formData,
+                        hargaReseller: Number(e.target.value),
+                      })
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
                     required

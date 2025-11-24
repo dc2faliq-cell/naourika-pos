@@ -1,8 +1,16 @@
 import { useState, useEffect } from 'react';
 import api from '../lib/api';
-import { Search, Plus, Minus, Trash2, ShoppingCart } from 'lucide-react';
+import {
+  Search,
+  Plus,
+  Minus,
+  Trash2,
+  ShoppingCart,
+  Box,
+} from 'lucide-react';
 import ReceiptModal from '../components/ReceiptModal';
 
+// ... (interfaces remain the same) ...
 interface Product {
   id: string;
   name: string;
@@ -40,6 +48,9 @@ export default function KasirPage() {
   const [useWholesalePrice, setUseWholesalePrice] = useState(false);
   const [additionalFee, setAdditionalFee] = useState(0);
   const [discount, setDiscount] = useState(0);
+
+  // New state for mobile view
+  const [activeView, setActiveView] = useState<'products' | 'cart'>('products');
 
   useEffect(() => {
     fetchProducts();
@@ -109,7 +120,10 @@ export default function KasirPage() {
 
   const calculateTotal = () => {
     const price = useWholesalePrice ? 'hargaReseller' : 'hargaJual';
-    const subtotal = cart.reduce((sum, item) => sum + (item as any)[price] * item.quantity, 0);
+    const subtotal = cart.reduce(
+      (sum, item) => sum + (item as any)[price] * item.quantity,
+      0
+    );
     const afterAdditional = subtotal + additionalFee;
     const finalTotal = afterAdditional - discount;
     return Math.max(0, finalTotal);
@@ -117,7 +131,10 @@ export default function KasirPage() {
 
   const calculateSubtotal = () => {
     const price = useWholesalePrice ? 'hargaReseller' : 'hargaJual';
-    return cart.reduce((sum, item) => sum + (item as any)[price] * item.quantity, 0);
+    return cart.reduce(
+      (sum, item) => sum + (item as any)[price] * item.quantity,
+      0
+    );
   };
 
   const handleCheckout = async () => {
@@ -136,7 +153,6 @@ export default function KasirPage() {
 
       let customerId = selectedCustomerId;
 
-      // If "new customer" form is shown, create customer first
       if (showNewCustomerForm && newCustomerName && newCustomerPhone) {
         try {
           const newCustomer = await api.post('/customers', {
@@ -144,11 +160,12 @@ export default function KasirPage() {
             phone: newCustomerPhone,
           });
           customerId = newCustomer.data.id;
-          fetchCustomers(); // Refresh customer list
+          fetchCustomers();
         } catch (error: any) {
-          // If customer already exists (phone duplicate), try to find by phone
           if (error.response?.data?.error?.includes('already exists')) {
-            const existingCustomer = customers.find(c => c.phone === newCustomerPhone);
+            const existingCustomer = customers.find(
+              (c) => c.phone === newCustomerPhone
+            );
             if (existingCustomer) {
               customerId = existingCustomer.id;
             }
@@ -156,8 +173,7 @@ export default function KasirPage() {
         }
       }
 
-      // Get customer data for receipt
-      const selectedCustomer = customers.find(c => c.id === customerId);
+      const selectedCustomer = customers.find((c) => c.id === customerId);
 
       const response = await api.post('/transactions', {
         items,
@@ -167,7 +183,6 @@ export default function KasirPage() {
         customerPhone: selectedCustomer?.phone || newCustomerPhone || undefined,
       });
 
-      // Add additional data to transaction for receipt
       const transactionWithExtras = {
         ...response.data,
         additionalFee,
@@ -176,8 +191,7 @@ export default function KasirPage() {
       };
 
       setLastTransaction(transactionWithExtras);
-      
-      // Reset form
+
       setCart([]);
       setSelectedCustomerId('');
       setShowNewCustomerForm(false);
@@ -187,6 +201,7 @@ export default function KasirPage() {
       setAdditionalFee(0);
       setDiscount(0);
       fetchProducts();
+      setActiveView('products'); // Return to products view after checkout
 
       setShowReceiptModal(true);
     } catch (error: any) {
@@ -196,270 +211,322 @@ export default function KasirPage() {
     }
   };
 
-  const filteredProducts = products.filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    (p.brand && p.brand.toLowerCase().includes(search.toLowerCase()))
+  const filteredProducts = products.filter(
+    (p) =>
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      (p.brand && p.brand.toLowerCase().includes(search.toLowerCase()))
   );
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
-      <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="mb-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Cari produk..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-            />
+    <div className="flex flex-col h-full">
+      {/* Mobile Tab Navigation */}
+      <div className="lg:hidden p-2 bg-gray-100 rounded-lg flex gap-2">
+        <button
+          onClick={() => setActiveView('products')}
+          className={`w-full text-center font-semibold p-2 rounded-md flex items-center justify-center gap-2 ${
+            activeView === 'products'
+              ? 'bg-primary text-white'
+              : 'bg-white text-textPrimary'
+          }`}
+        >
+          <Box className="w-5 h-5" /> Produk
+        </button>
+        <button
+          onClick={() => setActiveView('cart')}
+          className={`w-full text-center font-semibold p-2 rounded-md flex items-center justify-center gap-2 relative ${
+            activeView === 'cart'
+              ? 'bg-primary text-white'
+              : 'bg-white text-textPrimary'
+          }`}
+        >
+          <ShoppingCart className="w-5 h-5" /> Keranjang
+          {cart.length > 0 && (
+            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+              {cart.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 mt-4">
+        {/* Product List */}
+        <div
+          className={`lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-6 ${
+            activeView === 'products' ? 'block' : 'hidden lg:block'
+          }`}
+        >
+          <div className="mb-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Cari produk..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 overflow-y-auto">
+            {filteredProducts.map((product) => (
+              <div
+                key={product.id}
+                onClick={() => addToCart(product)}
+                className="bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg p-4 cursor-pointer transition"
+              >
+                <h3 className="font-semibold text-textPrimary truncate">
+                  {product.name}
+                </h3>
+                {product.brand && (
+                  <p className="text-xs text-gray-500 mt-1">{product.brand}</p>
+                )}
+                <p className="text-lg font-bold text-primary mt-2">
+                  Rp {product.hargaJual.toLocaleString('id-ID')}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Stok: {product.stock}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-h-[calc(100vh-250px)] overflow-y-auto">
-          {filteredProducts.map((product) => (
-            <div
-              key={product.id}
-              onClick={() => addToCart(product)}
-              className="bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg p-4 cursor-pointer transition"
-            >
-              <h3 className="font-semibold text-textPrimary truncate">
-                {product.name}
-              </h3>
-              {product.brand && (
-                <p className="text-xs text-gray-500 mt-1">{product.brand}</p>
-              )}
-              <p className="text-lg font-bold text-primary mt-2">
-                Rp {product.hargaJual.toLocaleString('id-ID')}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                Stok: {product.stock}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
+        {/* Cart */}
+        <div
+          className={`bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex-col ${
+            activeView === 'cart' ? 'flex' : 'hidden lg:flex'
+          }`}
+        >
+          <h2 className="text-xl font-bold text-textPrimary mb-4 flex items-center gap-2">
+            <ShoppingCart className="w-6 h-6" />
+            Keranjang
+          </h2>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col">
-        <h2 className="text-xl font-bold text-textPrimary mb-4 flex items-center gap-2">
-          <ShoppingCart className="w-6 h-6" />
-          Keranjang
-        </h2>
+          <div className="flex-1 overflow-y-auto mb-4 space-y-3">
+            {cart.length === 0 ? (
+              <p className="text-center text-gray-500 py-8">Keranjang kosong</p>
+            ) : (
+              cart.map((item) => (
+                <div
+                  key={item.id}
+                  className="bg-gray-50 rounded-lg p-3 border border-gray-200"
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-sm">{item.name}</h4>
+                      <p className="text-xs text-gray-600">
+                        Rp{' '}
+                        {(useWholesalePrice
+                          ? item.hargaReseller
+                          : item.hargaJual
+                        ).toLocaleString('id-ID')}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => removeFromCart(item.id)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
 
-        <div className="flex-1 overflow-y-auto mb-4 space-y-3">
-          {cart.length === 0 ? (
-            <p className="text-center text-gray-500 py-8">Keranjang kosong</p>
-          ) : (
-            cart.map((item) => (
-              <div
-                key={item.id}
-                className="bg-gray-50 rounded-lg p-3 border border-gray-200"
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-sm">{item.name}</h4>
-                    <p className="text-xs text-gray-600">
-                      Rp {(useWholesalePrice ? item.hargaReseller : item.hargaJual).toLocaleString('id-ID')}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => updateQuantity(item.id, -1)}
+                        className="bg-gray-200 hover:bg-gray-300 rounded p-1"
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+                      <span className="font-semibold w-8 text-center">
+                        {item.quantity}
+                      </span>
+                      <button
+                        onClick={() => updateQuantity(item.id, 1)}
+                        className="bg-gray-200 hover:bg-gray-300 rounded p-1"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <p className="font-bold text-primary">
+                      Rp{' '}
+                      {(
+                        (useWholesalePrice
+                          ? item.hargaReseller
+                          : item.hargaJual) * item.quantity
+                      ).toLocaleString('id-ID')}
                     </p>
                   </div>
-                  <button
-                    onClick={() => removeFromCart(item.id)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
                 </div>
+              ))
+            )}
+          </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => updateQuantity(item.id, -1)}
-                      className="bg-gray-200 hover:bg-gray-300 rounded p-1"
-                    >
-                      <Minus className="w-4 h-4" />
-                    </button>
-                    <span className="font-semibold w-8 text-center">
-                      {item.quantity}
-                    </span>
-                    <button
-                      onClick={() => updateQuantity(item.id, 1)}
-                      className="bg-gray-200 hover:bg-gray-300 rounded p-1"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <p className="font-bold text-primary">
-                    Rp {((useWholesalePrice ? item.hargaReseller : item.hargaJual) * item.quantity).toLocaleString('id-ID')}
-                  </p>
+          <div className="space-y-3 border-t pt-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Pelanggan (opsional)
+              </label>
+              <select
+                value={selectedCustomerId}
+                onChange={(e) => {
+                  if (e.target.value === 'new') {
+                    setShowNewCustomerForm(true);
+                    setSelectedCustomerId('');
+                  } else {
+                    setSelectedCustomerId(e.target.value);
+                    setShowNewCustomerForm(false);
+                  }
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none"
+              >
+                <option value="">-- Pilih Pelanggan --</option>
+                {customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.name} - {customer.phone} (Points:{' '}
+                    {customer.points})
+                  </option>
+                ))}
+                <option value="new">+ Pelanggan Baru</option>
+              </select>
+            </div>
+
+            {showNewCustomerForm && (
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Nama Pelanggan
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Nama pelanggan"
+                    value={newCustomerName}
+                    onChange={(e) => setNewCustomerName(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none"
+                  />
                 </div>
-              </div>
-            ))
-          )}
-        </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    No. WhatsApp
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="08xxxxxxxxxx"
+                    value={newCustomerPhone}
+                    onChange={(e) => setNewCustomerPhone(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none"
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    setShowNewCustomerForm(false);
+                    setNewCustomerName('');
+                    setNewCustomerPhone('');
+                  }}
+                  className="text-xs text-gray-600 hover:text-gray-800"
+                >
+                  Batalkan
+                </button>
+              </>
+            )}
 
-        <div className="space-y-3 border-t pt-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Pelanggan (opsional)
-            </label>
+            <div className="flex items-center justify-between bg-blue-50 rounded-lg p-3 border border-blue-200">
+              <label className="text-sm font-medium text-textPrimary cursor-pointer">
+                Gunakan Harga Grosir
+              </label>
+              <input
+                type="checkbox"
+                checked={useWholesalePrice}
+                onChange={(e) => setUseWholesalePrice(e.target.checked)}
+                className="w-5 h-5 text-primary focus:ring-2 focus:ring-primary rounded cursor-pointer"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Additional (Ongkir, dll)
+              </label>
+              <input
+                type="number"
+                placeholder="0"
+                value={additionalFee || ''}
+                onChange={(e) => setAdditionalFee(Number(e.target.value) || 0)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Diskon
+              </label>
+              <input
+                type="number"
+                placeholder="0"
+                value={discount || ''}
+                onChange={(e) => setDiscount(Number(e.target.value) || 0)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none"
+              />
+            </div>
+
             <select
-              value={selectedCustomerId}
-              onChange={(e) => {
-                if (e.target.value === 'new') {
-                  setShowNewCustomerForm(true);
-                  setSelectedCustomerId('');
-                } else {
-                  setSelectedCustomerId(e.target.value);
-                  setShowNewCustomerForm(false);
-                }
-              }}
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none"
             >
-              <option value="">-- Pilih Pelanggan --</option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>
-                  {customer.name} - {customer.phone} (Points: {customer.points})
-                </option>
-              ))}
-              <option value="new">+ Pelanggan Baru</option>
+              <option value="CASH">Tunai</option>
+              <option value="DEBIT">Debit</option>
+              <option value="QRIS">QRIS</option>
+              <option value="TRANSFER">Transfer</option>
             </select>
-          </div>
 
-          {showNewCustomerForm && (
-            <>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Nama Pelanggan
-                </label>
-                <input
-                  type="text"
-                  placeholder="Nama pelanggan"
-                  value={newCustomerName}
-                  onChange={(e) => setNewCustomerName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  No. WhatsApp
-                </label>
-                <input
-                  type="tel"
-                  placeholder="08xxxxxxxxxx"
-                  value={newCustomerPhone}
-                  onChange={(e) => setNewCustomerPhone(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none"
-                />
-              </div>
-              <button
-                onClick={() => {
-                  setShowNewCustomerForm(false);
-                  setNewCustomerName('');
-                  setNewCustomerPhone('');
-                }}
-                className="text-xs text-gray-600 hover:text-gray-800"
-              >
-                Batalkan
-              </button>
-            </>
-          )}
-
-          <div className="flex items-center justify-between bg-blue-50 rounded-lg p-3 border border-blue-200">
-            <label className="text-sm font-medium text-textPrimary cursor-pointer">
-              Gunakan Harga Grosir
-            </label>
-            <input
-              type="checkbox"
-              checked={useWholesalePrice}
-              onChange={(e) => setUseWholesalePrice(e.target.checked)}
-              className="w-5 h-5 text-primary focus:ring-2 focus:ring-primary rounded cursor-pointer"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Additional (Ongkir, dll)
-            </label>
-            <input
-              type="number"
-              placeholder="0"
-              value={additionalFee || ''}
-              onChange={(e) => setAdditionalFee(Number(e.target.value) || 0)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Diskon
-            </label>
-            <input
-              type="number"
-              placeholder="0"
-              value={discount || ''}
-              onChange={(e) => setDiscount(Number(e.target.value) || 0)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none"
-            />
-          </div>
-
-          <select
-            value={paymentMethod}
-            onChange={(e) => setPaymentMethod(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none"
-          >
-            <option value="CASH">Tunai</option>
-            <option value="DEBIT">Debit</option>
-            <option value="QRIS">QRIS</option>
-            <option value="TRANSFER">Transfer</option>
-          </select>
-
-          <div className="bg-gray-50 rounded-lg p-3 border border-gray-200 space-y-2">
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-600">Subtotal:</span>
-              <span className="font-semibold">
-                Rp {calculateSubtotal().toLocaleString('id-ID')}
-              </span>
-            </div>
-            {additionalFee > 0 && (
+            <div className="bg-gray-50 rounded-lg p-3 border border-gray-200 space-y-2">
               <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-600">Additional:</span>
-                <span className="font-semibold text-green-600">
-                  + Rp {additionalFee.toLocaleString('id-ID')}
+                <span className="text-gray-600">Subtotal:</span>
+                <span className="font-semibold">
+                  Rp {calculateSubtotal().toLocaleString('id-ID')}
                 </span>
               </div>
-            )}
-            {discount > 0 && (
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-600">Diskon:</span>
-                <span className="font-semibold text-red-600">
-                  - Rp {discount.toLocaleString('id-ID')}
+              {additionalFee > 0 && (
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600">Additional:</span>
+                  <span className="font-semibold text-green-600">
+                    + Rp {additionalFee.toLocaleString('id-ID')}
+                  </span>
+                </div>
+              )}
+              {discount > 0 && (
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600">Diskon:</span>
+                  <span className="font-semibold text-red-600">
+                    - Rp {discount.toLocaleString('id-ID')}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between items-center pt-2 border-t border-gray-300">
+                <span className="font-semibold text-textPrimary">Total:</span>
+                <span className="text-2xl font-bold text-primary">
+                  Rp {calculateTotal().toLocaleString('id-ID')}
                 </span>
               </div>
-            )}
-            <div className="flex justify-between items-center pt-2 border-t border-gray-300">
-              <span className="font-semibold text-textPrimary">Total:</span>
-              <span className="text-2xl font-bold text-primary">
-                Rp {calculateTotal().toLocaleString('id-ID')}
-              </span>
             </div>
-          </div>
 
-          <button
-            onClick={handleCheckout}
-            disabled={loading || cart.length === 0}
-            className="w-full bg-primary hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Memproses...' : 'Checkout'}
-          </button>
+            <button
+              onClick={handleCheckout}
+              disabled={loading || cart.length === 0}
+              className="w-full bg-primary hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? 'Memproses...' : 'Checkout'}
+            </button>
+          </div>
         </div>
-      </div>
 
-      <ReceiptModal
-        transaction={lastTransaction}
-        isOpen={showReceiptModal}
-        onClose={() => setShowReceiptModal(false)}
-      />
+        <ReceiptModal
+          transaction={lastTransaction}
+          isOpen={showReceiptModal}
+          onClose={() => setShowReceiptModal(false)}
+        />
+      </div>
     </div>
   );
 }

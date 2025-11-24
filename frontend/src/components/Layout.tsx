@@ -11,6 +11,7 @@ import {
   ChevronFirst,
   ChevronLast,
   MoreVertical,
+  LogOut, // Re-import LogOut icon
 } from 'lucide-react';
 
 const SidebarContext = createContext<{ expanded: boolean }>({ expanded: true });
@@ -36,6 +37,14 @@ const menuItems = [
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [expanded, setExpanded] = useState(true);
+  const { user, logout } = useAuth(); // Destructure user and logout
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    // Add logout functionality
+    logout();
+    navigate('/login');
+  };
 
   return (
     <>
@@ -84,13 +93,46 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           `}
             >
               <div className="leading-4">
-                <h4 className="font-semibold">Naourika</h4>
+                <h4 className="font-semibold">{user?.fullName || 'User'}</h4> {/* Display user's full name */}
                 <span className="text-xs text-gray-600">
-                  naourika@gmail.com
-                </span>
+                  {user?.role || 'Role'}
+                </span> {/* Display user's role */}
               </div>
               <MoreVertical size={20} />
             </div>
+          </div>
+          {/* Logout Button */}
+          <div className="p-3">
+            <button
+              onClick={handleLogout}
+              className={`
+                relative flex items-center py-2 px-3 my-1
+                font-medium rounded-md cursor-pointer
+                transition-colors group w-full
+                text-red-600 hover:bg-red-50
+            `}
+            >
+              <LogOut size={20} />
+              <span
+                className={`overflow-hidden transition-all ${
+                  expanded ? 'w-52 ml-3' : 'w-0'
+                }`}
+              >
+                Logout
+              </span>
+              {!expanded && (
+                <div
+                  className={`
+                    absolute left-full rounded-md px-2 py-1 ml-6
+                    bg-indigo-100 text-indigo-800 text-sm
+                    invisible opacity-20 -translate-x-3 transition-all
+                    group-hover:visible group-hover:opacity-100 group-hover:translate-x-0
+                `}
+                >
+                  Logout
+                </div>
+              )}
+            </button>
           </div>
         </nav>
       </aside>
