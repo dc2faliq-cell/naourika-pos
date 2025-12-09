@@ -157,10 +157,63 @@ export const createTransaction = async (req: AuthRequest, res: Response) => {
         },
       },
     });
-
     res.status(201).json(transaction);
   } catch (error) {
     console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const deleteTransaction = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // 1. Find the transaction to be deleted
+    const transaction = await prisma.transaction.findUnique({
+      where: { id },
+      include: {
+        items: {
+          include: {
+            product: true,
+          },
+        },
+      },
+    });
+
+    if (!transaction) {
+      return res.status(404).json({ error: 'Transaction not found' });
+    }
+
+    // 2. Use a database transaction to ensure atomicity
+    await prisma.$transaction(async (tx) => {
+      // a. Restore stock and log history for each item
+      for (const item of transaction.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stock: { increment: item.quantity } },
+        });
+
+        await tx.stockHistory.create({
+          data: {
+            productId: item.productId,
+            quantity: item.quantity,
+            type: 'IN',
+            notes: `Transaction Deleted - ${transaction.invoiceNumber}`,
+          },
+        });
+      }
+
+      // b. Delete the transaction
+      // The relation TransactionItem -> Transaction has onDelete: Cascade,
+      // so TransactionItems will be deleted automatically.
+      await tx.transaction.delete({
+        where: { id },
+      });
+    });
+
+    res.status(200).json({ message: 'Transaction deleted successfully' });
+  } catch (error) {
+    console.error('Failed to delete transaction:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

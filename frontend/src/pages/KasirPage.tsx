@@ -183,14 +183,15 @@ export default function KasirPage() {
         customerPhone: selectedCustomer?.phone || newCustomerPhone || undefined,
       });
 
-      const transactionWithExtras = {
+      const transactionForReceipt = {
         ...response.data,
+        totalAmount: calculateTotal(),
         additionalFee,
         discount,
         useWholesalePrice,
       };
 
-      setLastTransaction(transactionWithExtras);
+      setLastTransaction(transactionForReceipt);
 
       setCart([]);
       setSelectedCustomerId('');

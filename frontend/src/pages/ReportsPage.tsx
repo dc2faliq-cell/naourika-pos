@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
 import api from '../lib/api';
-import { DollarSign, ShoppingCart, TrendingUp, Package } from 'lucide-react';
+import {
+  DollarSign,
+  ShoppingCart,
+  TrendingUp,
+  Package,
+  Trash2,
+} from 'lucide-react';
 import { format } from 'date-fns';
 import {
   LineChart,
@@ -17,10 +23,14 @@ import {
   Pie,
   Cell,
 } from 'recharts';
+import { useAuth } from '../context/AuthContext';
 
 export default function ReportsPage() {
+  const { user } = useAuth();
   const [reportType, setReportType] = useState<'daily' | 'monthly'>('daily');
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [selectedDate, setSelectedDate] = useState(
+    format(new Date(), 'yyyy-MM-dd')
+  );
   const [reportData, setReportData] = useState<any>(null);
   const [chartData, setChartData] = useState<any[]>([]);
   const [topProducts, setTopProducts] = useState<any[]>([]);
@@ -32,13 +42,24 @@ export default function ReportsPage() {
 
   const fetchReport = async () => {
     try {
+      let response;
       if (reportType === 'daily') {
-        const response = await api.get(`/reports/daily?date=${selectedDate}`);
-        setReportData(response.data);
-        
-        // Chart data untuk daily (hourly breakdown)
+        response = await api.get(`/reports/daily?date=${selectedDate}`);
+      } else {
+        const date = new Date(selectedDate);
+        response = await api.get(
+          `/reports/monthly?year=${date.getFullYear()}&month=${
+            date.getMonth() + 1
+          }`
+        );
+      }
+      const data = response.data;
+      setReportData(data);
+
+      // Process chart data
+      if (reportType === 'daily') {
         const hourlyData: any = {};
-        response.data.transactions?.forEach((t: any) => {
+        data.transactions?.forEach((t: any) => {
           const hour = new Date(t.createdAt).getHours();
           if (!hourlyData[hour]) {
             hourlyData[hour] = { hour: `${hour}:00`, revenue: 0, count: 0 };
@@ -47,16 +68,8 @@ export default function ReportsPage() {
           hourlyData[hour].count += 1;
         });
         setChartData(Object.values(hourlyData));
-
       } else {
-        const date = new Date(selectedDate);
-        const response = await api.get(
-          `/reports/monthly?year=${date.getFullYear()}&month=${date.getMonth() + 1}`
-        );
-        setReportData(response.data);
-
-        // Chart data untuk monthly (daily breakdown)
-        const dailyData = response.data.dailyData || {};
+        const dailyData = data.dailyData || {};
         const chartArray = Object.keys(dailyData).map((day) => ({
           day: `Tgl ${day}`,
           revenue: dailyData[day].revenue,
@@ -66,9 +79,9 @@ export default function ReportsPage() {
         setChartData(chartArray);
       }
 
-      // Top products
+      // Process top products
       const productSales: any = {};
-      reportData?.transactions?.forEach((t: any) => {
+      data.transactions?.forEach((t: any) => {
         t.items?.forEach((item: any) => {
           const pid = item.product.id;
           if (!productSales[pid]) {
@@ -83,28 +96,50 @@ export default function ReportsPage() {
           productSales[pid].revenue += item.subtotal;
         });
       });
-
       const topProds = Object.values(productSales)
         .sort((a: any, b: any) => b.qty - a.qty)
         .slice(0, 5);
       setTopProducts(topProds);
 
-      // Payment methods distribution
+      // Process payment methods
       const paymentStats: any = {};
-      reportData?.transactions?.forEach((t: any) => {
+      data.transactions?.forEach((t: any) => {
         if (!paymentStats[t.paymentMethod]) {
-          paymentStats[t.paymentMethod] = { method: t.paymentMethod, count: 0, value: 0 };
+          paymentStats[t.paymentMethod] = {
+            method: t.paymentMethod,
+            count: 0,
+            value: 0,
+          };
         }
         paymentStats[t.paymentMethod].count += 1;
         paymentStats[t.paymentMethod].value += t.totalAmount;
       });
       setPaymentMethods(Object.values(paymentStats));
-
     } catch (error) {
       console.error('Failed to fetch report', error);
+      setReportData(null); // Clear data on error
     }
   };
 
+  const handleDeleteTransaction = async (transactionId: string) => {
+    if (
+      !window.confirm(
+        'Apakah Anda yakin ingin menghapus transaksi ini? Stok akan dikembalikan.'
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await api.delete(`/transactions/${transactionId}`);
+      alert('Transaksi berhasil dihapus.');
+      fetchReport(); // Refresh the report data
+    } catch (error) {
+      console.error('Failed to delete transaction', error);
+      alert('Gagal menghapus transaksi. Lihat konsol untuk detail.');
+    }
+  };
+  
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-textPrimary">Laporan</h1>
@@ -170,9 +205,14 @@ export default function ReportsPage() {
                       Rp {(reportData.totalProfit || 0).toLocaleString('id-ID')}
                     </p>
                     <p className="text-xs text-green-700 mt-1">
-                      Margin: {reportData.totalRevenue > 0 
-                        ? Math.round((reportData.totalProfit / reportData.totalRevenue) * 100) 
-                        : 0}%
+                      Margin:{' '}
+                      {reportData.totalRevenue > 0
+                        ? Math.round(
+                            (reportData.totalProfit / reportData.totalRevenue) *
+                              100
+                          )
+                        : 0}
+                      %
                     </p>
                   </div>
                 </div>
@@ -203,7 +243,8 @@ export default function ReportsPage() {
                       Rp{' '}
                       {reportData.totalTransactions > 0
                         ? Math.round(
-                            reportData.totalRevenue / reportData.totalTransactions
+                            reportData.totalRevenue /
+                              reportData.totalTransactions
                           ).toLocaleString('id-ID')
                         : 0}
                     </p>
@@ -216,15 +257,20 @@ export default function ReportsPage() {
             {chartData.length > 0 && (
               <div className="border-t pt-6">
                 <h3 className="text-lg font-bold text-textPrimary mb-4">
-                  Grafik Pendapatan {reportType === 'daily' ? '(Per Jam)' : '(Per Hari)'}
+                  Grafik Pendapatan{' '}
+                  {reportType === 'daily' ? '(Per Jam)' : '(Per Hari)'}
                 </h3>
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey={reportType === 'daily' ? 'hour' : 'day'} />
+                    <XAxis
+                      dataKey={reportType === 'daily' ? 'hour' : 'day'}
+                    />
                     <YAxis />
-                    <Tooltip 
-                      formatter={(value: any) => `Rp ${value.toLocaleString('id-ID')}`}
+                    <Tooltip
+                      formatter={(value: any) =>
+                        `Rp ${value.toLocaleString('id-ID')}`
+                      }
                     />
                     <Legend />
                     <Line
@@ -262,7 +308,11 @@ export default function ReportsPage() {
                         <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                         <YAxis />
                         <Tooltip />
-                        <Bar dataKey="qty" fill="#0f62fe" name="Qty Terjual" />
+                        <Bar
+                          dataKey="qty"
+                          fill="#0f62fe"
+                          name="Qty Terjual"
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -277,9 +327,13 @@ export default function ReportsPage() {
                             {index + 1}
                           </div>
                           <div>
-                            <p className="font-semibold text-sm">{item.name}</p>
+                            <p className="font-semibold text-sm">
+                              {item.name}
+                            </p>
                             {item.brand && (
-                              <p className="text-xs text-gray-500">{item.brand}</p>
+                              <p className="text-xs text-gray-500">
+                                {item.brand}
+                              </p>
                             )}
                           </div>
                         </div>
@@ -319,7 +373,11 @@ export default function ReportsPage() {
                         {paymentMethods.map((_entry, index) => (
                           <Cell
                             key={`cell-${index}`}
-                            fill={['#0f62fe', '#ff7a59', '#10b981', '#f59e0b'][index % 4]}
+                            fill={
+                              ['#0f62fe', '#ff7a59', '#10b981', '#f59e0b'][
+                                index % 4
+                              ]
+                            }
                           />
                         ))}
                       </Pie>
@@ -336,7 +394,12 @@ export default function ReportsPage() {
                           <div
                             className="w-4 h-4 rounded"
                             style={{
-                              backgroundColor: ['#0f62fe', '#ff7a59', '#10b981', '#f59e0b'][index % 4],
+                              backgroundColor: [
+                                '#0f62fe',
+                                '#ff7a59',
+                                '#10b981',
+                                '#f59e0b',
+                              ][index % 4],
                             }}
                           />
                           <p className="font-semibold text-sm">{pm.method}</p>
@@ -366,17 +429,33 @@ export default function ReportsPage() {
                     key={transaction.id}
                     className="flex justify-between items-center p-4 bg-gray-50 rounded-lg"
                   >
-                    <div>
+                    <div className="flex-1">
                       <p className="font-semibold text-textPrimary">
                         {transaction.invoiceNumber}
                       </p>
                       <p className="text-sm text-gray-600">
-                        {format(new Date(transaction.createdAt), 'dd MMM yyyy HH:mm')}
+                        {format(
+                          new Date(transaction.createdAt),
+                          'dd MMM yyyy HH:mm'
+                        )}
                       </p>
                     </div>
-                    <p className="text-lg font-bold text-primary">
-                      Rp {transaction.totalAmount.toLocaleString('id-ID')}
-                    </p>
+                    <div className="flex items-center gap-4">
+                      <p className="text-lg font-bold text-primary">
+                        Rp {transaction.totalAmount.toLocaleString('id-ID')}
+                      </p>
+                      {user?.role === 'ADMIN' && (
+                        <button
+                          onClick={() =>
+                            handleDeleteTransaction(transaction.id)
+                          }
+                          className="text-red-500 hover:text-red-700 p-2 rounded-full hover:bg-red-100 transition"
+                          aria-label="Delete transaction"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
